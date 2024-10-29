@@ -1,0 +1,43 @@
+image: harbor.containers.wurnet.nl/proxy-cache/library/python:3.11
+
+before_script:
+      # prep environment
+      - pip install --upgrade pip
+      - pip install --upgrade build
+      - python -m build
+      - pip install -r requirements.txt
+      - pip install .
+
+# Stages are steps in the pipeline that are performed sequentially
+# You can assign multiple jobs to the same stage (e.g. unit_test_job and lint_test_job), which will then be performed in parallel
+stages:
+  - test
+  - deploy
+
+# The test_job runs the unit tests
+test_job:
+  stage: test
+  script:
+      # run unit tests
+      - pytest tests
+
+# The deploy_job deploys the package, only runs on merge to main, requires test_job to have run
+deploy_job:
+  stage: deploy
+  script:
+    # Deploy package
+    - pip install --upgrade twine
+    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --repository-url ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi dist/*
+  only:
+    - main
+  # rules:
+  #   # Run if there is a merge request to main
+  #   - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
+  #   # Run job if pushed directly to main
+  #   - if: $CI_COMMIT_BRANCH == "main"
+  #   # # if branch doesn’t have changed files, the job doesn’t run.  => NEED TO BE COMBINED WITH ABOVE RULES
+    # - if: $CI_COMMIT_BRANCH
+    #   changes:
+    #     compare_to: 'refs/heads/main'
+    #     paths:
+    #       - '*'
